@@ -1,0 +1,409 @@
+div>
+
+</div>
+    </body>
+    </html>html lang="zh-cn">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /> 
+        <title>{% block title %}标题{% end %}</title>
+        <style>
+        div.container {
+                width: 100%;
+                margin:0px;
+                border:1px solid gray;
+                line-height:150%;
+            }
+            
+            div.header, div.footer {
+                padding:0.5em;
+                color:white;
+                background-color:gray;
+                clear:left;
+            }
+            
+            
+            div.left {
+                float:left;
+                width:160px;
+                margin:0;
+                padding:1em;
+            }
+            
+            div.content {
+                min-height: 80%;
+                margin-left:190px;
+                border-left:1px solid gray;
+                padding:1em;
+            }</style>
+        
+    
+    <body>
+    
+    <div class="container">
+    
+    <div class="header">简单课程管理系统</div>
+    
+    <div class="left">
+        <ul>
+            <li><a href="/classd">学生视角</a></li>
+            <li><a href="/teachen">教师视角</a></li>
+            <li><a href="/admin">管理员</a></li>
+        </ul>
+    </div>
+    
+    <div class="content">
+    {% block content %}{% end %}
+    
+    
+    {% extends "./base.html" %}
+{% block title %} 学生视角 {% end %}
+
+{% block content %}
+   <hr>
+   <p>课程表</p>
+   <table border=1>
+      <tr><th>课程日期</th><th>课程时间</th><th>课程名称</th><th>教师姓名</th><th>课程教室</th></tr>
+      {% for item in items %}
+   <tr>
+   {% for  i in range(0,10) %}  
+	<td>{{ item[i] }}</td>
+   </tr>
+	{%end%}
+</table>	
+{% end %} 
+{%end%}
+
+
+# -*- coding: utf-8 -*-
+
+import collections
+import itertools
+
+# 注册字符串缺省类型为unicode
+import psycopg2.extensions
+psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
+
+import psycopg2.extras
+import psycopg2.pool
+
+_pg_conn_pools = {}
+
+def register_dsn(dsn, pool_name=None, minconn=1, maxconn=20):
+    '''注册数据库连接字符串'''
+    pool = psycopg2.pool.ThreadedConnectionPool(
+        minconn=minconn, maxconn=maxconn, dsn=dsn)
+    _pg_conn_pools[pool_name] = pool
+
+
+def _get_connection_pool(name=None):
+    if name not in _pg_conn_pools :
+        s = "You should register a dsn at first for '%s' pool"
+        s %= (name if name else 'default')
+        raise ConnectionError(s)
+
+    return _pg_conn_pools[name]
+
+class ConnectionError(LookupError):
+    pass
+
+class SimpleDataCursor(object):
+
+    def __init__(self, pool_name=None, autocommit=True):
+
+        self._pool = _get_connection_pool(pool_name)
+        self._conn = self._pool.getconn()
+        self._conn.autocommit = autocommit
+        self._cursor = self._conn.cursor(
+            cursor_factory=psycopg2.extras.NamedTupleCursor)
+            
+    def __del__(self):
+        if self._conn:
+            self._close()
+        
+    def __enter__(self):
+        return self
+
+    def __exit__ (self, etyp, eval, tb):
+        self._close()
+        
+    def _close(self):
+        self._cursor.close()
+        self._pool.putconn(self._conn)
+        self._conn = None
+    
+    def __iter__(self):
+        self._cursor.__iter__()
+
+    @property 
+    def rowcount(sefl):
+        self._cursor.rowcount
+
+    @property 
+    def rownumber(sefl):
+        self._cursor.rowcount
+
+    def execute(self, operation, parameters=()):
+        self._cursor.execute(operation, parameters)
+
+    def fetchall(self):
+        ''' 获取所有数据，将各条记录转换成由元组(namedtuple)组成的列表'''
+        return self._cursor.fetchall()
+
+    def fetchall_dicts(self, dict_type=collections.OrderedDict):
+        ''' 获取所有数据，并将各条记录转换成由字典组成的列表'''
+        field_names = [d[0] for d in self._cursor.description]
+        rows = []
+        for r in self._cursor:
+            rows.append(dict_type(itertools.izip(field_names, r)))
+        return rows
+    def fetchone(self):
+        ''' 获取第一行的数据'''
+        return self._cursor.fetchone()
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+        
+        
+        {% extends "./base.html" %}
+<html>
+   <head>
+      {% block css %}
+      {% end %}
+      
+      {% block js %}
+      
+      {% end %}
+      <title>{% block title %} 修改 {% end %}</title>
+   </head>
+{% block content %}
+   <body>
+    <form action="/lesson.edit/{{num}}/{{cou_cn}}/{{tea_tn}}/{{cla_cln}}" method="post">
+        课程日期：<input type="text" name="date" value="{{date}}">
+        课程时间：<input type="text" name="time" value="{{time}}">
+        课程教室：<input type="text" name="classroom" value="{{classroom}}">
+
+        <input type="submit" value="修改">
+      </form>
+     <hr>
+     <a href="/" > 回到课程表 </a>
+   </body>
+{% end %}   
+ </html>
+
+
+{% extends "./base.html" %}
+{% block title %} 课程 {% end %}
+{% block content %}
+
+      <form action="/lesson.add" method="post">
+        排课序号：<input type="text" name="num">
+        专业号：<input type="text" name="cla_cln">
+        课程号：<input type="text" name="cou_cn">
+        教职工号：<input type="text" name="tea_tn">
+        课程日期：<input type="text" name="date">
+        课程时间：<input type="text" name="time">
+        课程教室：<input type="text" name="classroom">
+        <input type="submit" value="添加课程">
+      </form>
+     <hr>
+     <p>课程表</p>
+     <table border=1>
+        <tr><th>序号</th><th>课程日期</th><th>课程时间</th><th>课程号</th><th>课程名称</th><th>教职工号</th><th>教师姓名</th><th>课程教室</th><th>专业号</th><th>专业名</th><th>操作</th></tr>
+        {% for item in items %}
+        <tr>
+        {% for  i in range(0,10) %}  
+         <td>{{ item[i] }}</td>
+         {%end%}
+         <td>
+          [<a href="/lesson.edit/{{item[0]}}/{{item[3]}}/{{item[5]}}/{{item[8]}}">修改</a>]
+          [<a href="/lesson.del/{{item[0]}}">删除</a>]
+         </td>
+        </tr>
+        {% end %}
+     </table>
+{% end %}  
+
+
+# -*- coding: utf-8 -*-
+import tornado.ioloop
+import tornado.web
+
+import dbconn
+dbconn.register_dsn("host=localhost dbname=examdb user=examdbo password=pass")
+
+
+class BaseReqHandler(tornado.web.RequestHandler):
+
+    def db_cursor(self, autocommit=True):
+        return dbconn.SimpleDataCursor(autocommit=autocommit)
+    
+
+class MainHandler(BaseReqHandler):
+    def get(self):
+        with self.db_cursor() as cur:
+            sql = '''
+            SELECT sc.num, sc.date, sc.time, sc.cou_cn, c.name as cou_name, sc.tea_tn,
+            t.name as tea_name, sc.classroom, sc.cla_cln, cla.name as cla_name 
+            FROM schedule as sc
+            INNER JOIN class as cla ON sc.cla_cln = cla.cln
+            INNER JOIN course as c ON sc.cou_cn = c.cn
+            INNER JOIN teacher as t ON sc.tea_tn = t.tn
+            ORDER BY sc.num, sc.date, sc.time;
+            '''
+            cur.execute(sql)
+            items = cur.fetchall()
+        self.set_header("Content-Type", "text/html; charset=UTF-8")
+        self.render("list.html", title="课程表", items=items)
+
+
+class LessonAddHandler(BaseReqHandler):
+    def post(self):
+        num = int(self.get_argument("num"))
+        cla_cln = int(self.get_argument("cla_cln"))
+        cou_cn = int(self.get_argument("cou_cn"))
+        tea_tn = int(self.get_argument("tea_tn"))
+        date = self.get_argument("date")
+        time = self.get_argument("time")
+        classroom = self.get_argument("classroom")
+        
+        with self.db_cursor() as cur:
+            sql = '''INSERT INTO schedule 
+            (num, cla_cln, cou_cn, tea_tn, date, time, classroom )  VALUES( %s, %s, %s, %s, %s, %s, %s);'''
+            cur.execute(sql, (num, cla_cln, cou_cn, tea_tn, date, time, classroom))
+            cur.commit()
+        
+        self.set_header("Content-Type", "text/html; charset=UTF-8") 
+        self.redirect("/")   
+
+
+class LessonDelHandler(BaseReqHandler):
+    def get(self, num):
+        num = int(num)
+
+        with self.db_cursor() as cur:
+            sql = '''
+            DELETE FROM schedule 
+                WHERE num= %s'''
+            cur.execute(sql, (num,))
+            cur.commit()
+
+        self.set_header("Content-Type", "text/html; charset=UTF-8")
+        self.redirect("/")    
+
+
+
+class LessonEditHandler(BaseReqHandler):
+    def get(self, num,  cou_cn, tea_tn, cla_cln):
+        num=int(num)
+        tea_tn = int(tea_tn)
+        cou_cn = int(cou_cn)
+        cla_cln = int(cla_cln)
+        print(num,cou_cn,tea_tn,cla_cln)
+        with self.db_cursor() as cur:
+            sql = '''
+            SELECT date,time,classroom FROM schedule
+                WHERE num=%s AND cou_cn =%s AND tea_tn =%s AND cla_cln=%s;
+            '''
+            cur.execute(sql, ( num, cou_cn, tea_tn, cla_cln))
+            row = cur.fetchone()
+            print(row)
+            if row:
+                self.render("edit.html", num=num, cou_cn=cou_cn, 
+                    tea_tn=tea_tn, cla_cln=cla_cln, date=row[0], time=row[1], classroom=row[2],)
+            else:
+                self.write('Not FOUND!')
+        self.set_header("Content-Type", "text/html; charset=UTF-8")
+
+    def post(self, num, cou_cn, tea_tn, cla_cln): 
+        date = self.get_argument("date")
+        time = self.get_argument("time")
+        classroom = self.get_argument("classroom")
+        self.set_header("Content-Type", "text/html; charset=UTF-8")
+        with self.db_cursor() as cur:
+            sql = '''
+            UPDATE schedule SET date=%s , time=%s , classroom=%s
+                WHERE num=%s AND cou_cn=%s AND tea_tn=%s AND cla_cln=%s'''
+            cur.execute(sql, (date, time, classroom, num, cou_cn, tea_tn, cla_cln))
+            cur.commit()
+        self.redirect("/")
+
+        
+
+
+class ClasssHandler(BaseReqHandler):
+    def get(self):
+        with self.db_cursor() as cur:
+            sql = '''
+            SELECT sc.date, sc.time, c.name as cou_name, 
+            t.name as tea_name, sc.classroom, cla.name as cla_name
+            FROM schedule as sc
+            INNER JOIN class as cla ON sc.cla_cln = cla.cln
+            INNER JOIN course as c ON sc.cou_cn = c.cn
+            INNER JOIN teacher as t ON sc.tea_tn = t.tn
+            WHERE cla.name='信息'
+            ORDER BY  sc.date, sc.time;
+            '''
+            cur.execute(sql)
+            items = cur.fetchall()
+        self.set_header("Content-Type", "text/html; charset=UTF-8")
+        self.render("classd.html", title="课程表", items=items)
+
+
+
+
+if __name__ == "__main__":
+    application.listen(8888)
+    server = tornado.ioloop.IOLoop.instance()
+    tornado.ioloop.PeriodicCallback(lambda: None, 500, server).start()
+    server.start()
+
+class TenchHandler(BaseReqHandler):
+    def get(self):
+        with self.db_cursor() as cur:
+            sql = '''
+            SELECT sc.date, sc.time, c.name as cou_name, 
+             cla.name as cla_name, sc.classroom, t.name as tea_name
+            FROM schedule as sc
+            INNER JOIN class as cla ON sc.cla_cln = cla.cln
+            INNER JOIN course as c ON sc.cou_cn = c.cn
+            INNER JOIN teacher as t ON sc.tea_tn = t.tn
+            WHERE t.name='王建国'
+            ORDER BY  sc.date, sc.time;
+            '''
+            cur.execute(sql)
+            items = cur.fetchall()
+        self.set_header("Content-Type", "text/html; charset=UTF-8")
+        self.render("teachen.html", title="课程表", items=items)
+
+  
+application = tornado.web.Application([
+    (r"/admin", MainHandler),
+    (r"/lesson.add",  LessonAddHandler),
+    (r"/lesson.del/([0-9]+)",  LessonDelHandler),
+    (r"/lesson.edit/([0-9]+)/([0-9]+)/([0-9]+)/([0-9]+)", LessonEditHandler),
+    (r"/classd", ClasssHandler),
+    (r"/teachen", TenchHandler)
+], debug=True)
+
+
+{% extends "./base.html" %}
+{% block title %} 老师视角 {% end %}
+
+{% block content %}
+   <hr>
+   <p>课程表</p>
+   <table border=1>
+      <tr><th>课程日期</th><th>课程时间</th><th>课程名称</th><th>专业名</th><th>课程教室</th></tr>
+      {% for item in items %}
+   <tr>
+   {% for  i in range(0,10) %}  
+	<td>{{ item[i] }}</td>
+   </tr>
+	{%end%}
+</table>	
+{% end %} 
+{%end%}
